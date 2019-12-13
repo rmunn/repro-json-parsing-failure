@@ -17,11 +17,28 @@ let port =
     "SERVER_PORT"
     |> tryGetEnv |> Option.map uint16 |> Option.defaultValue 8085us
 
+let jsonError (msg : string) : HttpHandler = json { ok = false; message = msg }
+let jsonSuccess data : HttpHandler = json { ok = true; data = data }
+let jsonResult (result : Result<'a, string>) : HttpHandler =
+    match result with
+    | Ok data -> jsonSuccess data
+    | Error msg -> jsonError msg
+
 let webApp = router {
     get "/api/init" (fun next ctx ->
         task {
             let counter = {Value = 42}
             return! json counter next ctx
+        })
+    get "/api/json" (fun next ctx ->
+        task {
+            let packages = {
+                example = true
+                devDependencies = Map.ofList [
+                    "fable-compiler", "^2.4.6"
+                    "fable-loader", "^2.1.8"
+                ]}
+            return! jsonSuccess packages next ctx
         })
 }
 

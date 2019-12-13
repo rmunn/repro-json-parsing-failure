@@ -1,5 +1,6 @@
 module Client
 
+open Browser
 open Elmish
 open Elmish.React
 open Fable.React
@@ -9,6 +10,7 @@ open Thoth.Fetch
 open Fulma
 open Thoth.Json
 
+open JsonHelpers
 open Shared
 
 // The model holds data that you want to keep track of while the application is running
@@ -23,8 +25,11 @@ type Msg =
     | Increment
     | Decrement
     | InitialCountLoaded of Counter
+    | LoadPackages
+    | PackagesLoaded of JsonResult<Packages>
 
 let initialCounter () = Fetch.fetchAs<Counter> "/api/init"
+let loadPackages () = Fetch.fetchAs<JsonResult<Packages>> "/api/json"
 
 // defines the initial state and initial command (= side-effect) of the application
 let init () : Model * Cmd<Msg> =
@@ -47,6 +52,16 @@ let update (msg : Msg) (currentModel : Model) : Model * Cmd<Msg> =
     | _, InitialCountLoaded initialCount->
         let nextModel = { Counter = Some initialCount }
         nextModel, Cmd.none
+    | _, LoadPackages ->
+        let loadCmd =
+            Cmd.OfPromise.perform loadPackages () PackagesLoaded
+        currentModel, loadCmd
+    | _, PackagesLoaded jsonResult ->
+        unpackJsonResult currentModel jsonResult (fun packages ->
+            console.log("Loaded packages: ", packages, " successfully")
+            for pkg, ver in packages.devDependencies |> Map.toSeq do
+                console.log("Version of ", pkg, " is: ", ver)
+            currentModel, Cmd.none)
     | _ -> currentModel, Cmd.none
 
 
@@ -96,7 +111,9 @@ let view (model : Model) (dispatch : Msg -> unit) =
                     [ Heading.h3 [] [ str ("Press buttons to manipulate counter: " + show model) ] ]
                 Columns.columns []
                     [ Column.column [] [ button "-" (fun _ -> dispatch Decrement) ]
-                      Column.column [] [ button "+" (fun _ -> dispatch Increment) ] ] ]
+                      Column.column [] [ button "+" (fun _ -> dispatch Increment) ] ]
+                Columns.columns []
+                    [ Column.column [] [ button "Get packages" (fun _ -> dispatch LoadPackages) ] ] ]
 
           Footer.footer [ ]
                 [ Content.content [ Content.Modifiers [ Modifier.TextAlignment (Screen.All, TextAlignment.Centered) ] ]
